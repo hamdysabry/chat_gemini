@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:chat_gemini/provider/chat_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
@@ -20,6 +22,21 @@ class _BottomChatFieldState extends State<BottomChatField> {
     textController.dispose();
     textFieldFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendChatMessage({
+    required String message,
+    required ChatProvider chatProvider,
+    required bool isTextOnly,
+  }) async {
+    try {
+      await chatProvider.sentMessage(message: message, isTextOnly: isTextOnly);
+    } catch (e) {
+      log("Error sending message: $e");
+    } finally {
+      textController.clear();
+      textFieldFocus.unfocus();
+    }
   }
 
   @override
@@ -49,7 +66,13 @@ class _BottomChatFieldState extends State<BottomChatField> {
               controller: textController,
               textInputAction: TextInputAction.send,
               onSubmitted: (String value) {
-                // Handle send action
+                if (value.isNotEmpty) {
+                  _sendChatMessage(
+                    message: textController.text,
+                    chatProvider: widget.chatProvider,
+                    isTextOnly: true,
+                  );
+                }
               },
               decoration: InputDecoration.collapsed(
                 hintText: 'Enter a prompt....',
@@ -61,7 +84,15 @@ class _BottomChatFieldState extends State<BottomChatField> {
             ),
           ),
           GestureDetector(
-            onTap: () {},
+            onTap: () {
+              if (textController.text.isNotEmpty) {
+                _sendChatMessage(
+                  message: textController.text,
+                  chatProvider: widget.chatProvider,
+                  isTextOnly: true,
+                );
+              }
+            },
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.deepPurple,
