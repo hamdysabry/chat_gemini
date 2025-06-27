@@ -1,3 +1,6 @@
+import 'dart:developer';
+
+import 'package:chat_gemini/api/api_service.dart';
 import 'package:chat_gemini/constant.dart';
 import 'package:chat_gemini/hive/chat_history.dart';
 import 'package:chat_gemini/hive/setting.dart';
@@ -16,13 +19,13 @@ class ChatProvider extends ChangeNotifier {
   final List<XFile> _imagesFileList = [];
 
   final int _currentPage = 0;
-  final String _currentChatId = '';
+  String _currentChatId = '';
 
   GenerativeModel? _model;
   GenerativeModel? _textModel;
   GenerativeModel? _visionModel;
-  final String _modelType = 'gemini-pro';
-  final bool _isLoading = false;
+  String _modelType = 'gemini-pro';
+  bool _isLoading = false;
 
   List<Message> get inChatMessages => _inChatMessages;
   PageController get pageController => _pageController;
@@ -34,6 +37,79 @@ class ChatProvider extends ChangeNotifier {
   GenerativeModel? get visionModel => _visionModel;
   String get modelType => _modelType;
   bool get isLoading => _isLoading;
+
+  Future<void> setInChatMessages({required String chatId}) async {
+    final messageFromDB = await loadMessagesFromDB(chatId: chatId);
+
+    for (final message in messageFromDB) {
+      if (!inChatMessages.contains(message)) {
+        log("message Already exists in inChatMessages: ${message.messageId}");
+      }
+      _inChatMessages.add(message);
+    }
+    notifyListeners();
+  }
+
+  Future<List<Message>> loadMessagesFromDB({required String chatId}) async {
+    await Hive.openBox("${Constant.chatMessageBox}/$chatId");
+    final messageBox = Hive.box("${Constant.chatMessageBox}/$chatId");
+    final newData =
+        messageBox.keys.map((e) {
+          final message = messageBox.get(e);
+          final messageData = Message.fromJson(
+            Map<String, dynamic>.from(message),
+          );
+
+          return messageData;
+        }).toList();
+    notifyListeners();
+    return newData;
+  }
+
+  void setImagesFileList({required List<XFile> imagesList}) {
+    _imagesFileList.addAll(imagesList);
+    notifyListeners();
+  }
+
+  void setCurrentPage(int page) {
+    _pageController.jumpToPage(page);
+    notifyListeners();
+  }
+
+  void setCurrentChatId(String chatId) {
+    _currentChatId = chatId;
+    notifyListeners();
+  }
+
+  void setLoading({required bool loading}) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  String setCurrentModel({required String newModel}) {
+    _modelType = newModel;
+    notifyListeners();
+    return newModel;
+  }
+
+  Future<void> setModel({required bool isTextOnly}) async {
+    if (isTextOnly) {
+      _model =
+          _textModel ??
+          GenerativeModel(
+            model: setCurrentModel(newModel: 'gemini-pro'),
+            apiKey: ApiService.apiKey,
+          );
+    } else {
+      _model =
+          _visionModel ??
+          GenerativeModel(
+            model: setCurrentModel(newModel: 'gemini-2.5-flash'),
+            apiKey: ApiService.apiKey,
+          );
+    }
+    notifyListeners();
+  }
 
   static initHive() async {
     final dir = await path.getApplicationDocumentsDirectory();
